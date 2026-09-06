@@ -23,6 +23,7 @@
   (Hawker et al., 2022): https://doi.org/10.1088/1748-9326/ac4d4f
 - Geology: USGS State Geologic Map Compilation (SGMC) at 90 m resolution
   (Horton et al,. 2017): https://doi.org/10.3133/ds1052
+- TWI: Hoylman (2021): https://doi.org/10.5281/zenodo.4460354 
 - Land use: National Land Cover Database (NLCD) at 30 m resolution
   (Dewitz 2021): https://doi.org/10.5066/P9KZCM54, supplemented with the
   Landsat-based Irrigation Dataset (LANID) at 30 m resolution

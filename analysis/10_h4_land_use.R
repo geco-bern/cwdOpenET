@@ -1,4 +1,4 @@
-# 10_h4_land_use_high_plains.R
+# 10_h4_land_use.R
 # Tests H4 on the High Plains region. Does CWDmax differ across
 # land-use types?
 # The classes are: Cropland irrigated, Cropland rainfed,
@@ -13,6 +13,7 @@ library(terra)
 library(dplyr)
 library(ggplot2)
 library(here)
+library(effectsize)
 
 source(here("R", "add_boxplot_n.R"))
 source(here("R", "lanid_filter.R"))
@@ -27,6 +28,7 @@ r <- terra::rast(here("data", "cwd_high_plains.tif"))
 stack_pre <- terra::rast(here("data", "stack_high_plains.tif"))
 nlcd      <- stack_pre[["nlcd"]]
 lanid     <- stack_pre[["lanid"]]
+slope     <- stack_pre[["slope"]]
 
 
 # Build the four land-use classes 
@@ -81,6 +83,52 @@ df_sample <- dplyr::tibble(
     )
   ) |>
   dplyr::filter(!is.na(cwd_max))
+
+
+# ---- Group statistics -------------------------------------------------------
+stats_lu <- df_sample |>
+  dplyr::group_by(class) |>
+  dplyr::summarise(
+    n       = dplyr::n(),
+    median  = round(median(cwd_max), 1),
+    .groups = "drop"
+  )
+
+# A positive delta means the first class of the pair holds the higher values.
+lu_pairs <- list(
+  c("Cropland irrigated", "Cropland rainfed"),
+  c("Cropland rainfed",   "Grassland"),
+  c("Cropland rainfed",   "Shrubland")
+)
+
+contrasts_lu <- lapply(lu_pairs, function(p) {
+  d <- df_sample |>
+    dplyr::filter(class %in% p) |>
+    dplyr::mutate(class = factor(class, levels = p))
+  
+  data.frame(
+    contrast    = paste(p[1], "-", p[2]),
+    diff_median = round(median(d$cwd_max[d$class == p[1]]) -
+                          median(d$cwd_max[d$class == p[2]]), 1),
+    delta       = round(effectsize::cliffs_delta(cwd_max ~ class, data = d,
+                                                 ci = NULL)[[1]], 3)
+  )
+}) |>
+  dplyr::bind_rows() |>
+  dplyr::mutate(p_first_higher = round((delta + 1) / 2, 3))
+
+eta <- effectsize::eta_squared(
+  aov(cwd_max ~ class, data = df_sample), ci = NULL
+)$Eta2
+
+print(as.data.frame(stats_lu))
+print(contrasts_lu)
+cat("Eta squared: ", signif(eta, 3), "\n", sep = "")
+
+# Median slope across the whole region 
+cat("Median slope, whole region: ",
+    round(as.numeric(terra::global(slope, median, na.rm = TRUE)), 1),
+    "\n", sep = "")
 
 
 # Boxplot 

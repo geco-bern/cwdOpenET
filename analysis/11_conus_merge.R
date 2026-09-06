@@ -3,7 +3,7 @@ library(terra)
 library(ggplot2)
 library(tidyterra)
 
-# ---- Einlesen & Mergen auf Disk ---------------------------------------------
+# Read and merge to disk
 files <- list.files(
   here("data", "conus_grid"),
   pattern    = "\\.tif$",
@@ -21,16 +21,6 @@ cwd <- terra::merge(
   gdal      = c("COMPRESS=DEFLATE", "TILED=YES", "BIGTIFF=YES")
 )
 
-# Sanity-Check: Resolution, CRS (EPSG:5070), Bandnamen
+# Sanity-Check: Resolution, CRS (EPSG:5070), bandnames
 print(cwd)
 names(cwd)
-
-# ---- Plot -------------------------------------------------------------------
-ggplot() +
-  tidyterra::geom_spatraster(data = cwd["cwd_max"]) +
-  scale_fill_viridis_c(
-    name     = expression(CWD[max] ~ "(mm)"),
-    na.value = NA
-  ) +
-  labs(x = NULL, y = NULL) +
-  theme_classic()

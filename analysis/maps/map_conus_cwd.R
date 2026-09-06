@@ -1,3 +1,7 @@
+# Plots the CONUS-wide CWDmax map together with CONUS-wide gap-filled months and
+# a gap-filled months distribution (barplot)
+
+
 # ---- Setup ------------------------------------------------------------------
 library(terra)
 library(dplyr)
@@ -8,15 +12,17 @@ library(scico)
 library(scales)
 library(here)
 
-# ---- Load data --------------------------------------------------------------
+
+# Load data 
 r_conus      <- terra::rast(here("data", "cwd_conus.tif"))
 r_cwd        <- r_conus[["cwd_max"]]
 r_gap_filled <- r_conus[["gap_filled_months"]]
 
-# ---- Downsample for plotting ------------------------------------------------
-# 30 m -> 300 m (factor 10). Continuous variables -> mean aggregation.
-r_cwd_agg        <- terra::aggregate(r_cwd,        fact = 10, fun = "mean")
-r_gap_filled_agg <- terra::aggregate(r_gap_filled, fact = 10, fun = "mean")
+# Downsample for plotting 
+# 30 m -> 600 m (factor 20). Continuous variables -> mean aggregation.
+r_cwd_agg        <- terra::aggregate(r_cwd,        fact = 20, fun = "mean")
+r_gap_filled_agg <- terra::aggregate(r_gap_filled, fact = 20, fun = "mean")
+
 
 # ---- Map: CWDmax ------------------------------------------------------------
 p_map_cwd <- ggplot() +
@@ -29,11 +35,9 @@ p_map_cwd <- ggplot() +
     oob       = scales::squish,  # values > 840 shown as darkest colour
     na.value  = NA
   ) +
-  labs(
-    title = expression("CWD"[max]~"across the contiguous United States [mm]")
-  ) +
   theme_classic()
 p_map_cwd
+
 
 # ---- Map: gap-filled months -------------------------------------------------
 # Separate palette family from the CWDmax map so the two are not confused. 
@@ -49,11 +53,9 @@ p_map_gap <- ggplot() +
     oob       = scales::squish,
     na.value  = NA
   ) +
-  labs(
-    title = "Gap-filled months across the contiguous United States"
-  ) +
   theme_classic()
 p_map_gap
+
 
 # ---- Sample for the distribution plot ---------------------------------------
 # na.rm = FALSE plus drop_na() afterwards: na.rm = TRUE makes spatSample
@@ -69,6 +71,18 @@ df_sample <- terra::spatSample(
 ) |>
   tibble::as_tibble() |>
   tidyr::drop_na()
+
+
+# Gap-filled months shares
+gap_shares <- data.frame(
+  n_sampled      = nrow(df_sample),
+  share_none     = round(100 * mean(df_sample$gap_filled_months == 0), 1),
+  share_max_3    = round(100 * mean(df_sample$gap_filled_months <= 3), 1),
+  share_above_12 = round(100 * mean(df_sample$gap_filled_months > 12), 1)
+)
+
+print(gap_shares)
+
 
 # ---- Distribution: gap-filled months ----------------------------------------
 # Discrete count (0-36) -> one bar per integer value, relative frequency.
@@ -86,6 +100,7 @@ p_bar_gap <- ggplot(df_sample, aes(x = gap_filled_months)) +
   theme_classic()
 p_bar_gap
 
+
 # ---- Combined figure: gap-filled months -------------------------------------
 # Map and distribution as one thesis figure. Titles are dropped here, the
 # caption describes both panels.
@@ -99,6 +114,7 @@ p_gap_combined <- cowplot::plot_grid(
   rel_heights = c(1.6, 1)
 )
 p_gap_combined
+
 
 # ---- Save -------------------------------------------------------------------
 ggsave(here("fig", "map_cwd_max_conus.pdf"), p_map_cwd,

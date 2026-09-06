@@ -3,6 +3,7 @@
 # The Northern California subset is used because it has pronounced ridge and 
 # valley structures.
 
+
 # ---- Setup ------------------------------------------------------------------
 library(terra)
 library(tidyr)
@@ -46,6 +47,7 @@ slope     <- stack_pre[["slope"]]
 nlcd      <- stack_pre[["nlcd"]]
 lanid     <- stack_pre[["lanid"]]
 
+
 # ---- Sample -----------------------------------------------------------------
 stack <- c(cwd, elevation, twi, northness, slope)
 names(stack) <- c("cwd_max", "elevation", "twi", "northness", "slope")
@@ -63,13 +65,12 @@ df_raw <- terra::spatSample(
 # LANID value per sampled pixel, used by the drop_irrigated() function below.
 df_raw$lanid <- terra::extract(lanid, as.matrix(df_raw[, c("x", "y")]))$lanid
 
-# NLCD land cover. extracted here for the forest filter used in Plot 6.
+# NLCD land cover. extracted here for the forest filter used in Plot 4 and 5.
 df_raw$nlcd  <- terra::extract(nlcd, as.matrix(df_raw[, c("x", "y")]))$nlcd
 
 # Derive classification variables used in the plots below:
 # aspect_class buckets northness into south-/east-west-/north-facing
 # terciles (breaks at ±0.33). slope_class groups slope into gentle/moderate/steep bins
-# elev_band splits elevation into deciles to relate slope to elevation.
 
 # Minimum slope for a meaningful aspect. On near-flat terrain aspect is
 # undefined and the algorithm assigns a random value, so northness
@@ -116,9 +117,8 @@ label_n_aspect_norcal <- df |>
   dplyr::pull(line) |>
   paste(collapse = "\n")
 
+
 # ---- Plot 1: CWDmax vs northness --------------------------------------------
-# lm fit, matching the formula used by geom_smooth() below, so
-# R²/n/slope can be read off with annotate_lm().
 mod_northness_norcal <- lm(cwd_max ~ northness, data = df)
 
 plot_northness_norcal <- ggplot(
@@ -148,7 +148,24 @@ plot_northness_norcal <- annotate_lm(
 # Save plot
 save_fig(plot_northness_norcal, "h2_norcal_cwd_by_northness_subset")
 
+
 # ---- Plot 2: TWI vs CWDmax by aspect ----------------------------------------
+# One lm per aspect class, matching the three geom_smooth() lines drawn below,
+# so slope and R² can be reported per class.
+fits_aspect_norcal <- df |>
+  dplyr::group_by(aspect_class) |>
+  dplyr::group_modify(function(.x, .y) {
+    m <- lm(cwd_max ~ twi, data = .x)
+    tibble::tibble(
+      n         = nrow(.x),
+      slope     = round(coef(m)[["twi"]], 2),
+      r_squared = round(summary(m)$r.squared, 4)
+    )
+  }) |>
+  dplyr::ungroup()
+
+print(as.data.frame(fits_aspect_norcal))
+
 plot_aspect_norcal <- ggplot(
   data = df,
   aes(x = twi, y = cwd_max, colour = aspect_class)) +
@@ -174,14 +191,25 @@ plot_aspect_norcal <- plot_aspect_norcal +
 
 save_fig(plot_aspect_norcal, "h2_norcal_cwd_aspect_subset")
 
+
 # ---- Plot 3: slope x aspect -------------------------------------------------
 # Fixed y-axis limits, shared with Plot 3 in
 # 06_shading_artefact_appalachia.R for cross-region comparability. 
 shared_y_limits_slope_aspect <- c(137, 826)
 
-plot_slope_aspect <- df |>
+# Mean CWDmax per aspect x slope class. These nine values are the points drawn
+# below 
+means_slope_aspect <- df |>
   group_by(aspect_class, slope_class) |>
-  summarise(mean_cwd = mean(cwd_max, na.rm = TRUE), .groups = "drop") |>
+  summarise(
+    n        = dplyr::n(),
+    mean_cwd = round(mean(cwd_max, na.rm = TRUE), 1),
+    .groups  = "drop"
+  )
+
+print(as.data.frame(means_slope_aspect))
+
+plot_slope_aspect <- means_slope_aspect |>
   ggplot(
     aes(x = slope_class, y = mean_cwd, colour = aspect_class, group = aspect_class)) +
   geom_line(linewidth = 1) +
@@ -208,54 +236,10 @@ plot_slope_aspect <- plot_slope_aspect +
 
 save_fig(plot_slope_aspect, "h2_norcal_slope_aspect_subset")
 
-# # ---- Plot 4: mean slope per elevation band ----------------------------------
-# # To test whether CWDmax is systematically overestimated at higher elevations, 
-# # which would confound H1.
-# 
-# plot_slope_elev <- df |>
-#   group_by(elev_band) |>
-#   summarise(mean_slope = mean(slope, na.rm = TRUE), .groups = "drop") |>
-#   ggplot(
-#     aes(x = elev_band, y = mean_slope, group = 1)) +
-#   geom_line(linewidth = 1, colour = "grey30") +
-#   geom_point(size = 3, colour = "grey30") +
-#   labs(
-#     x = "Elevation band (low to high)",
-#     y = "Mean slope (degrees)") +
-#   theme_classic() +
-#   theme(axis.text.x = element_text(angle = 35, hjust = 1, size = 8))
-# 
-# save_fig(plot_slope_elev, "h2_norcal_slope_by_elev_subset")
-# 
-# # ---- Plot 5: CWDmax by slope class ------------------------------------------
-# plot_cwd_slope_class <- ggplot(
-#   data = df,
-#   aes(x = slope_class, y = cwd_max, fill = slope_class)) +
-#   geom_boxplot(outlier.alpha = 0.05, outlier.size = 0.5) +
-#   # Names taken from slope_labels so the fill keys always match the factor
-#   # levels created above, whatever slope_min is set to.
-#   scale_fill_manual(
-#     values = setNames(
-#       c("#fee08b", "#fd8d3c", "#d7301f"),
-#       unname(slope_labels)
-#     )
-#   ) +
-#   labs(
-#     x = "Slope class",
-#     y = expression(CWD[max]~"[mm]")) +
-#   theme_classic() +
-#   theme(legend.position = "none")
-# 
-# # Add per-group n label.
-# plot_cwd_slope_class <- plot_cwd_slope_class +
-#   add_boxplot_n(df, "slope_class", "cwd_max")
-# 
-# save_fig(plot_cwd_slope_class, "h2_norcal_cwd_by_slope_subset")
 
-# ---- Plot 6: TWI vs CWDmax, south-facing forest only ------------------------
-# Only high quality pixels are used for this plot. Restricting to south-facing
-# pixels (the aspect class least affected by the shading bias) and to forest
-# (NLCD 2019 codes 41/42/43) holds aspect and land cover constant.
+# ---- Plot 4: TWI vs CWDmax, south-facing forest only ------------------------
+# Restricting to south-facing pixels (the aspect class least affected by the 
+# shading bias) and to forest (NLCD 2019 codes 41/42/43) holds aspect and land cover constant.
 
 df_south_forest <- df |>
   dplyr::filter(nlcd %in% c(41, 42, 43)) |>   # deciduous/evergreen/mixed forest
@@ -286,7 +270,8 @@ plot_twi_forest_south <- annotate_lm(
 # Save plot
 save_fig(plot_twi_forest_south, "h2_norcal_twi_forest_south_subset")
 
-# ---- Plot 7: TWI vs CWDmax, forest only, all aspects pooled -----------------
+
+# ---- Plot 5: TWI vs CWDmax, forest only, all aspects pooled -----------------
 # Test whether the shading bias is also present, when all aspects are pooled.
 
 df_forest_pooled <- df |>
@@ -315,3 +300,8 @@ plot_twi_forest_pooled <- annotate_lm(
 
 # Save plot
 save_fig(plot_twi_forest_pooled, "h2_norcal_twi_forest_pooled_subset")
+
+# Median slope of Northern California subset
+cat("Median slope, subset: ",
+    round(as.numeric(terra::global(slope, median, na.rm = TRUE)), 1),
+    "\n", sep = "")

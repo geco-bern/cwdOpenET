@@ -2,9 +2,6 @@
 # This script works in the same way as the 05_shading_artefact_northern_california.R one but
 # for the appalachians focus region. 
 
-# A slightly different approach is used when filtering for high-quality pixels
-# only. Instead of using a Geology polygon to filter, the NLCD raster is used
-# to filter for forest pixels.
 
 # ---- Setup ------------------------------------------------------------------
 library(terra)
@@ -38,6 +35,7 @@ slope     <- stack_pre[["slope"]]
 nlcd      <- stack_pre[["nlcd"]]    
 lanid     <- stack_pre[["lanid"]]
 
+
 # ---- Sample -----------------------------------------------------------------
 stack <- c(cwd, elevation, twi, northness, slope)
 names(stack) <- c("cwd_max", "elevation", "twi", "northness", "slope")
@@ -55,7 +53,7 @@ df_raw <- terra::spatSample(
 # LANID value per sampled pixel, used by the drop_irrigated() call below.
 df_raw$lanid <- terra::extract(lanid, as.matrix(df_raw[, c("x", "y")]))$lanid
 
-# NLCD land cover, extracted here for the forest filter used in Plots 6 and 7.
+# NLCD land cover, extracted here for the forest filter used in Plots 4 and 5.
 df_raw$nlcd  <- terra::extract(nlcd, as.matrix(df_raw[, c("x", "y")]))$nlcd
 
 # Derive classification variables used in the plots below:
@@ -108,9 +106,8 @@ label_n_aspect_appalachia <- df |>
   dplyr::pull(line) |>
   paste(collapse = "\n")
 
+
 # ---- Plot 1: CWDmax vs northness --------------------------------------------
-# lm fit, matching the formula used by geom_smooth() below, so
-# R²/n/slope can be read off with annotate_lm().
 mod_northness_appalachia <- lm(cwd_max ~ northness, data = df)
 
 plot_northness_appalachia <- ggplot(
@@ -139,7 +136,24 @@ plot_northness_appalachia <- annotate_lm(
 
 save_fig(plot_northness_appalachia, "h2_appalachia_cwd_by_northness")
 
+
 # ---- Plot 2: TWI vs CWDmax by aspect ----------------------------------------
+# One lm per aspect class, matching the three geom_smooth() lines drawn below,
+# so slope and R² can be reported per class.
+fits_aspect_appalachia <- df |>
+  dplyr::group_by(aspect_class) |>
+  dplyr::group_modify(function(.x, .y) {
+    m <- lm(cwd_max ~ twi, data = .x)
+    tibble::tibble(
+      n         = nrow(.x),
+      slope     = round(coef(m)[["twi"]], 2),
+      r_squared = round(summary(m)$r.squared, 4)
+    )
+  }) |>
+  dplyr::ungroup()
+
+print(as.data.frame(fits_aspect_appalachia))
+
 plot_aspect_appalachia <- ggplot(
   data = df, 
   aes(x = twi, y = cwd_max, colour = aspect_class)) +
@@ -170,9 +184,19 @@ save_fig(plot_aspect_appalachia, "h2_appalachia_cwd_aspect")
 # 05_shading_artefact_northern_california.R for cross-region comparability.
 shared_y_limits_slope_aspect <- c(137, 826)
 
-plot_slope_aspect <- df |>
+# Mean CWDmax per aspect x slope class. These nine values are the points drawn
+# below 
+means_slope_aspect <- df |>
   group_by(aspect_class, slope_class) |>
-  summarise(mean_cwd = mean(cwd_max, na.rm = TRUE), .groups = "drop") |>
+  summarise(
+    n        = dplyr::n(),
+    mean_cwd = round(mean(cwd_max, na.rm = TRUE), 1),
+    .groups  = "drop"
+  )
+
+print(as.data.frame(means_slope_aspect))
+
+plot_slope_aspect <- means_slope_aspect |>
   ggplot(
     aes(x = slope_class, y = mean_cwd, colour = aspect_class, group = aspect_class)) +
   geom_line(linewidth = 1) +
@@ -199,54 +223,8 @@ plot_slope_aspect <- plot_slope_aspect +
 
 save_fig(plot_slope_aspect, "h2_appalachia_slope_aspect")
 
-# # ---- Plot 4: mean slope per elevation band ----------------------------------
-# # To test whether CWDmax is systematically overestimated at higher elevations, 
-# # which would confound H1.
-# plot_slope_elev <- df |>
-#   group_by(elev_band) |>
-#   summarise(mean_slope = mean(slope, na.rm = TRUE), .groups = "drop") |>
-#   ggplot(
-#     aes(x = elev_band, y = mean_slope, group = 1)) +
-#   geom_line(linewidth = 1, colour = "grey30") +
-#   geom_point(size = 3, colour = "grey30") +
-#   labs(
-#     x       = "Elevation band (low to high)",
-#     y       = "Mean slope [degrees]") +
-#   theme_classic() +
-#   theme(axis.text.x = element_text(angle = 35, hjust = 1, size = 8))
-# 
-# save_fig(plot_slope_elev, "h2_appalachia_slope_by_elev")
-# 
-# # ---- Plot 5: CWDmax by slope class ------------------------------------------
-# plot_cwd_slope_class <- ggplot(
-#   data = df, 
-#   aes(x = slope_class, y = cwd_max, fill = slope_class)) +
-#   geom_boxplot(outlier.alpha = 0.05, outlier.size = 0.5) +
-#   # Names taken from slope_labels so the fill keys always match the factor
-#   # levels created above, whatever slope_min is set to.
-#   scale_fill_manual(
-#     values = setNames(
-#       c("#fee08b", "#fd8d3c", "#d7301f"),
-#       unname(slope_labels)
-#     )
-#   ) +
-#   labs(
-#     x       = "Slope class",
-#     y       = expression(CWD[max]~"[mm]")) +
-#   theme_classic() +
-#   theme(legend.position = "none")
-# 
-# # Add per-group n label.
-# plot_cwd_slope_class <- plot_cwd_slope_class +
-#   add_boxplot_n(df, "slope_class", "cwd_max")
-# 
-# save_fig(plot_cwd_slope_class, "h2_appalachia_cwd_by_slope")
 
-# ---- Plot 6: TWI vs CWDmax, south-facing forest only ------------------------
-# Isolate high-quality pixels: south-facing (least affected by the shading)
-# and forest only, to check whether a TWI-CWDmax signal emerges once aspect
-# and land cover are held constant.
-
+# ---- Plot 4: TWI vs CWDmax, south-facing forest only ------------------------
 df_forest <- df |>
   dplyr::filter(nlcd %in% c(41, 42, 43)) |>   # deciduous/evergreen/mixed forest
   dplyr::filter(aspect_class == "south-facing")
@@ -276,10 +254,8 @@ plot_twi_forest_south <- annotate_lm(
 
 save_fig(plot_twi_forest_south, "h2_appalachia_twi_forest_south")
 
-# ---- Plot 7: TWI vs CWDmax, forest only, all aspects pooled -----------------
-# Test whether the shading bias is also present, when all aspects are pooled.
-# Differs from Plot 6 only in that the aspect filter is dropped.
 
+# ---- Plot 5: TWI vs CWDmax, forest only, all aspects pooled -----------------
 df_forest_pooled <- df |>
   dplyr::filter(nlcd %in% c(41, 42, 43))   # deciduous/evergreen/mixed forest
 
@@ -306,3 +282,8 @@ plot_twi_forest_pooled <- annotate_lm(
 )
 
 save_fig(plot_twi_forest_pooled, "h2_appalachia_twi_forest_pooled")
+
+# Median slope for Appalachian region
+cat("Median slope, region: ",
+    round(as.numeric(terra::global(slope, median, na.rm = TRUE)), 1),
+    "\n", sep = "")

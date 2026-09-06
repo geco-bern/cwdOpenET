@@ -3,6 +3,7 @@
 # H1 (elevation) uses the full Northern California focus region.
 # H2 (TWI) is restricted to the Northern California subset
 
+
 # ---- Setup ------------------------------------------------------------------
 library(terra)
 library(dplyr)
@@ -11,8 +12,7 @@ library(broom)
 library(here)
 library(mgcv)
 
-# annotate_lm() adds an R²/n/slope label to scatter/hexbin plots with a
-# trend line 
+# annotate_lm() adds an R²/n/slope label to scatter/hexbin plots with a trend line 
 # drop_irrigated() drops irrigated and NA pixels of the LANID dataset out of a dataframe
 # save_fig() writes each figure to fig/ as PDF and PNG
 source(here("R", "annotate_lm.R"))
@@ -35,10 +35,12 @@ cwd <- terra::rast(path_cwd)[["cwd_max"]]
 stack_pre <- terra::rast(path_stack)
 elev  <- stack_pre[["elevation"]]
 twi   <- stack_pre[["twi"]]
+slope <- stack_pre[["slope"]]
 lanid <- stack_pre[["lanid"]]
 
-stack        <- c(cwd, elev, twi)
-names(stack) <- c("cwd_max", "elevation", "twi")
+stack        <- c(cwd, elev, twi, slope)
+names(stack) <- c("cwd_max", "elevation", "twi", "slope")
+
 
 # ---- Subsample (full Northern California region, used for H1) ---------------
 df_full <- terra::spatSample(
@@ -58,6 +60,7 @@ df_full       <- drop_irrigated(df_full)
 # which slice_sample() would treat as an error.
 df <- df_full |>
   dplyr::slice_sample(n = min(n_sample, nrow(df_full)))
+
 
 # ---- Test H1: CWDmax vs. Elevation ------------------------------------------
 mod_h1 <- lm(cwd_max ~ elevation, data = df)
@@ -82,6 +85,7 @@ plot_elev_hex <- annotate_lm(plot_elev_hex, mod_h1, slope_unit = "mm/m")
 # Save plot
 save_fig(plot_elev_hex, "h1_elev_hex_norcal")
 
+
 # ---- Restrict to the Northern California subset (used for H2) ---------------
 # Subset defined directly in EPSG:5070 
 ext_subset <- terra::ext(
@@ -99,6 +103,7 @@ stack_subset        <- c(
   stack_pre_subset[["twi"]]
 )
 names(stack_subset) <- c("cwd_max", "elevation", "twi")
+
 
 # ---- Subsample for northern_california_subset -----------------------------
 df_subset_full <- terra::spatSample(
@@ -118,6 +123,7 @@ df_subset_full       <- drop_irrigated(df_subset_full)
 
 df_subset <- df_subset_full |>
   dplyr::slice_sample(n = min(n_sample, nrow(df_subset_full)))
+
 
 # ---- Test H2: CWDmax vs. TWI ------------------------------------------------
 mod_h2 <- lm(cwd_max ~ twi, data = df_subset)

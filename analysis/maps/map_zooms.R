@@ -1,6 +1,7 @@
-# 06_plot_zoom_maps.R
+# 05_map_zooms.R
 # CWDmax and gap-filled months for the three zoom windows, combined into a
 # single 3 x 2 panel figure with shared legends.
+
 
 # ---- Setup ------------------------------------------------------------------
 library(ggplot2)
@@ -9,20 +10,20 @@ library(ggspatial)
 library(patchwork)
 library(here)
 
-# ---- Zoom windows -----------------------------------------------------------
+# Zoom windows
 # Converted from WGS84 rectangles drawn in the GEE code editor.
 # Table order is figure row order.
 df_windows <- tibble::tribble(
   ~id,   ~label,    ~xmin,      ~ymin,      ~xmax,      ~ymax,
   "z05", "Zoom A",  -498940.6,  1597756.5,  -376923.9,  1708584.7,
   "z06", "Zoom B",  1134811.7,  1653744.2,  1265610.5,  1774527.1,
-  "z04", "Zoom C", -2138564.8,  2060683.0, -2002554.8,  2188453.0
+  "z04", "Zoom C", -2196800.0,  2143053.0, -2060790.0,  2270823.0
 )
 
-# ---- Load data --------------------------------------------------------------
+# Load data 
 r_conus <- terra::rast(here("data", "cwd_conus.tif"))
 
-# ---- Colour scales ----------------------------------------------------------
+# Colour scales 
 # Fixed limits, so every panel shares the same colour scale. Defined as objects
 # because patchwork's guides = "collect" only merges guides that match exactly.
 scale_cwd <- scale_fill_viridis_c(
@@ -43,8 +44,6 @@ scale_gap <- scico::scale_fill_scico(
 
 # ---- Map annotations --------------------------------------------------------
 # ggspatial sizes these in absolute units, so they do not shrink with the panel.
-# Scaled down from the single-map version, where the defaults overflowed the
-# axis expansion and covered the raster.
 # which_north = "grid" keeps the arrow pointing straight up (grid north) instead
 # of true north, which can look skewed under the Albers projection away from its
 # central meridian.
@@ -75,6 +74,7 @@ layer_north_arrow <- annotation_north_arrow(
     text_size  = 5
   )
 )
+
 
 # ---- Local helper -----------------------------------------------------------
 # Used only in this script (called once per panel).
@@ -126,6 +126,7 @@ build_zoom_panel <- function(r_crop, fill_var, scale_fill,
   p
 }
 
+
 # ---- Build panels -----------------------------------------------------------
 # Every panel keeps a fully labelled x axis. The windows sit at different
 # eastings, so a single shared axis in the bottom row would imply an alignment
@@ -153,10 +154,8 @@ list_panels <- df_windows |>
     )
   })
 
+
 # ---- Assemble figure --------------------------------------------------------
-# list_flatten yields cwd, gap, cwd, gap, ..., filling the two columns row-wise.
-# Legend position is set on the patchwork, not on the panels: it applies to the
-# collected guides, which belong to the figure rather than to any single panel.
 p_zooms <- list_panels |>
   purrr::list_flatten() |>
   patchwork::wrap_plots(ncol = 2, byrow = TRUE) +

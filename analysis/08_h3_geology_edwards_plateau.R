@@ -2,14 +2,15 @@
 # Tests H3 for the Edwards Plateau focus region.
 # Compares CWDmax between carbonate and clastic geological substrates
 
-# ---- Setup ------------------------------------------------------------------
 
+# ---- Setup ------------------------------------------------------------------
 library(terra)
 library(sf)
 library(dplyr)
 library(ggplot2)
 library(readr)
 library(here)
+library(effectsize)
 
 source(here("R", "add_boxplot_n.R"))
 source(here("R", "lanid_filter.R"))
@@ -17,12 +18,13 @@ source(here("R", "save_fig.R"))
 
 set.seed(42)
 
-# Load CWD and LANID rasters
+# Load CWD, LANID and slope rasters
 r      <- terra::rast(here("data", "cwd_edwards_plateau.tif"))
 r_cwd  <- r[["cwd_max"]]
 r_gaps <- r[["gap_filled_months"]]
 
 lanid <- terra::rast(here("data", "stack_edwards_plateau.tif"))[["lanid"]]
+slope <- terra::rast(here("data", "stack_edwards_plateau.tif"))[["slope"]]
 
 # Load and classify SGMC 
 sgmc <- sf::st_read(
@@ -57,7 +59,7 @@ geo_rast <- mask_irrigated(geo_rast, lanid)
 
 # Stratified sample 
 # Per-class n_sample, not area-proportional: ensures Clastic and Carbonate
-# are comparably represented for the H3 group comparison.
+# are comparably represented 
 n_sample <- 100000
 
 sample_pts <- terra::spatSample(
@@ -85,7 +87,38 @@ df_sample <- dplyr::tibble(
   ) |>
   dplyr::filter(!is.na(cwd_max))
 
-# Boxplot 
+# Group statistics 
+stats_geo <- df_sample |>
+  dplyr::group_by(geo_class) |>
+  dplyr::summarise(
+    n       = dplyr::n(),
+    median  = round(median(cwd_max), 1),
+    .groups = "drop"
+  )
+
+# Levels are c("Clastic", "Carbonate"), so a positive delta means Clastic
+# holds the higher values.
+delta <- effectsize::cliffs_delta(cwd_max ~ geo_class, data = df_sample,
+                                  ci = NULL)[[1]]
+
+eta <- effectsize::eta_squared(
+  aov(cwd_max ~ geo_class, data = df_sample), ci = NULL
+)$Eta2
+
+print(as.data.frame(stats_geo))
+
+cat("Median difference:      ", stats_geo$median[1] - stats_geo$median[2], " mm\n",
+    "Cliff's delta:          ", round(delta, 3), "\n",
+    "P(Clastic > Carbonate): ", round((delta + 1) / 2, 3), "\n",
+    "Eta squared:            ", signif(eta, 3), "\n",
+    sep = "")
+
+# Median slope across the whole region
+cat("Median slope, whole region: ",
+    round(as.numeric(terra::global(slope, median, na.rm = TRUE)), 1),
+    "\n", sep = "")
+
+# --- Boxplot -----------------------------------------------------------------
 p_box <- ggplot(
   df_sample,
   aes(x = geo_class, y = cwd_max, fill = geo_class)) +

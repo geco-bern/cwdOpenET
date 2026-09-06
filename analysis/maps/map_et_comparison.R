@@ -1,5 +1,5 @@
 # map_et_comparison.R
-# 2 x 2 panel figure: DisALEXI and OpenET Ensemble mean monthly ET 2020-2022 in
+# Plots 2 x 2 panel figure: DisALEXI and OpenET Ensemble mean monthly ET 2020-2022 in
 # the top row, DisALEXI-based CWD_max 2020-2022 bottom left, bottom right empty.
 # The ET window is a subset of the Northern California focus region, so CWD_max
 # is cropped out of the focus region export.
@@ -14,9 +14,10 @@ library(cowplot)
 library(sf)
 library(here)
 
-# ---- Load data --------------------------------------------------------------
+# Load data 
 r_et         <- terra::rast(here("data-raw", "et_comparison_2020_2022.tif"))
 r_cwd_norcal <- terra::rast(here("data", "cwd_northern_california.tif"))[["cwd_max"]]
+
 
 # ---- Crop CWD_max to the ET window ------------------------------------------
 # Both rasters come out of the same export settings (EPSG:5070, 30 m), so a
@@ -36,9 +37,11 @@ if (terra::same.crs(r_cwd_norcal, r_et)) {
   )
 }
 
+
 # ---- Colour scale limits ----------------------------------------------------
 et_limits  <- c(70, 115)     # shared by both ET panels
 cwd_limits <- c(610, 1080)   # 2nd/98th percentile of the cropped raster
+
 
 # ---- Map annotations --------------------------------------------------------
 # ggspatial sizes these in absolute units, so they do not shrink with the panel.
@@ -71,6 +74,7 @@ layer_north_arrow <- annotation_north_arrow(
     text_size  = 5
   )
 )
+
 
 # ---- Map function -----------------------------------------------------------
 make_map <- function(r, band_name, limits, legend_name) {
@@ -116,6 +120,7 @@ map_ensemble <- make_map(r_et,  "et_ensemble", et_limits,
 map_cwd      <- make_map(r_cwd, "cwd_max",     cwd_limits,
                          expression(CWD[max]~"[mm]"))
 
+
 # ---- Assemble figure --------------------------------------------------------
 # align/axis keep all panels the same size despite the wider CWD_max legend.
 # NULL leaves the bottom-right cell empty, the empty label suppresses its tag.
@@ -129,6 +134,7 @@ fig_et_comparison <- plot_grid(
 )
 
 fig_et_comparison
+
 
 # ---- Save -------------------------------------------------------------------
 # PNG rather than PDF: the dense 30 m rasters bloat vector output.

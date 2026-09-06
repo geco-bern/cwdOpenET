@@ -1,8 +1,7 @@
 # 09_h3_geology_edwards_landcover.R
-# Extension of 09_h3_geology_edwards_plateau.R: checks whether
+# Extension of 08_h3_geology_edwards_plateau.R. checks whether
 # the carbonate/clastic CWDmax contrast is hidden by the vegetation cover. 
-# To test this, it is differentiated between the 3 dominant vegetation classes 
-# on the Edwards Plateau: Grassland, Shrubland and Forest. 
+
 
 # ---- Setup ------------------------------------------------------------------
 library(terra)
@@ -11,7 +10,9 @@ library(dplyr)
 library(ggplot2)
 library(readr)
 library(here)
+library(effectsize)
 
+source(here("R", "add_boxplot_n.R"))
 source(here("R", "lanid_filter.R"))
 source(here("R", "save_fig.R"))
 
@@ -52,7 +53,30 @@ names(geo_rast)     <- "geo_class"
 stack_pre    <- terra::rast(here("data", "stack_edwards_plateau.tif"))
 nlcd_aligned <- stack_pre[["nlcd"]]
 
-# Reclassify to three target classes; all others become NA.
+
+# NLCD land cover shares, full Edwards Plateau extent
+nlcd_labels <- c(
+  `11` = "Open Water", `21` = "Developed, Open Space",
+  `22` = "Developed, Low Intensity", `23` = "Developed, Medium Intensity",
+  `24` = "Developed, High Intensity", `31` = "Barren Land",
+  `41` = "Deciduous Forest", `42` = "Evergreen Forest", `43` = "Mixed Forest",
+  `52` = "Shrub/Scrub", `71` = "Grassland/Herbaceous",
+  `81` = "Pasture/Hay", `82` = "Cultivated Crops",
+  `90` = "Woody Wetlands", `95` = "Emergent Herbaceous Wetlands"
+)
+
+nlcd_composition <- terra::freq(nlcd_aligned) |>
+  dplyr::as_tibble() |>
+  dplyr::transmute(code  = value,
+                   class = nlcd_labels[as.character(value)],
+                   n     = count,
+                   share = round(n / sum(n), 4)) |>
+  dplyr::arrange(dplyr::desc(share))
+
+print(nlcd_composition, n = Inf)
+
+
+# Three dominant natural/unmanaged classes from the table above.
 # 1 = Grassland, 2 = Shrub, 3 = Forest
 nlcd_reclass <- matrix(
   c(
@@ -112,17 +136,92 @@ df <- dplyr::tibble(
                        levels = seq_along(veg_levels),
                        labels = veg_levels)
   ) |>
-
+  
   dplyr::filter(
     !is.na(cwd_max),
     !is.na(veg_class)
   )
 
 
-# Faceted boxplot
+# ---- Group statistics -------------------------------------------------------
+stats_geo_veg <- df |>
+  dplyr::group_by(veg_class, geo_class) |>
+  dplyr::summarise(
+    n       = dplyr::n(),
+    median  = round(median(cwd_max), 1),
+    .groups = "drop"
+  )
+
+# Substrate contrast within each vegetation class. Levels are
+# c("Clastic", "Carbonate"), so a positive delta means Clastic holds the
+# higher values.
+contrasts_veg <- lapply(levels(df$veg_class), function(v) {
+  d <- droplevels(dplyr::filter(df, veg_class == v))
+  
+  data.frame(
+    veg_class   = v,
+    diff_median = round(median(d$cwd_max[d$geo_class == "Clastic"]) -
+                          median(d$cwd_max[d$geo_class == "Carbonate"]), 1),
+    delta       = round(effectsize::cliffs_delta(cwd_max ~ geo_class, data = d,
+                                                 ci = NULL)[[1]], 3)
+  )
+}) |>
+  dplyr::bind_rows() |>
+  dplyr::mutate(p_clastic_higher = round((delta + 1) / 2, 3))
+
+# Type II ANOVA, since the vegetation classes are unequally distributed across the
+# two substrates. The interaction term is the contrast varying by veg_class.
+eta <- effectsize::eta_squared(
+  car::Anova(lm(cwd_max ~ geo_class * veg_class, data = df), type = 2),
+  partial = FALSE, ci = NULL
+)
+
+# Pooled across substrate. The sample is stratified by geo_class
+stats_veg <- df |>
+  dplyr::group_by(veg_class) |>
+  dplyr::summarise(
+    n       = dplyr::n(),
+    median  = round(median(cwd_max), 1),
+    .groups = "drop"
+  )
+
+# Vegetation composition within each substrate.
+composition <- df |>
+  dplyr::count(geo_class, veg_class) |>
+  dplyr::group_by(geo_class) |>
+  dplyr::mutate(share = round(n / sum(n), 3)) |>
+  dplyr::ungroup()
+
+print(as.data.frame(stats_geo_veg))
+print(contrasts_veg)
+print(as.data.frame(stats_veg))
+print(as.data.frame(composition))
+print(data.frame(parameter = eta$Parameter, eta2 = signif(eta$Eta2, 3)))
+
+
+# Pooled comparison of clastic vs. carbonate but restricted to the three
+# dominant vegetation classes
+geo_cols <- c("Clastic" = "#0072B2", "Carbonate" = "#E69F00")
+
+p_box_veg_subset <- ggplot(
+  df,
+  aes(x = geo_class, y = cwd_max, fill = geo_class)) +
+  geom_boxplot(outlier.size = 0.3, outlier.alpha = 0.2) +
+  scale_fill_manual(values = geo_cols) +
+  labs(
+    x = NULL,
+    y = expression(CWD[max]~"[mm]")) +
+  theme_classic() +
+  theme(legend.position = "none")
+
+p_box_veg_subset <- p_box_veg_subset + add_boxplot_n(df, "geo_class", "cwd_max")
+
+save_fig(p_box_veg_subset, "h3_edwards_boxplot_veg_subset", width = 12, height = 10)
+
+
+# --- Faceted boxplot ---------------------------------------------------------
 # Same Wong-palette colours as 09_h3_geology_edwards_plateau.R so that
 # geo_class is always encoded identically across figures.
-geo_cols <- c("Clastic" = "#0072B2", "Carbonate" = "#E69F00")
 
 p <- ggplot(df, aes(x = veg_class, y = cwd_max, fill = geo_class)) +
   geom_boxplot(

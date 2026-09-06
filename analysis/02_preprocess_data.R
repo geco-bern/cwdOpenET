@@ -24,13 +24,15 @@ dir.create(here("data"), showWarnings = FALSE)
 # NLCD 2019 COG, streamed via /vsicurl/ (only overlapping tiles with the focus regions are read).
 nlcd_url <- "/vsicurl/https://storage.googleapis.com/feddata-r/nlcd/2019_Land_Cover_L48.tif"
 
+
 # ---- Focus regions ----------------------------------------------------------
 # Just the names. Each region's extent/CRS is read from its exported grid
 # template cwd_<region>.tif, not from hardcoded coordinates.
 focus_regions <- c("northern_california", "edwards_plateau",
                    "appalachia", "high_plains")
-# ---- Helpers ----------------------------------------------------------------
 
+
+# ---- Helpers ----------------------------------------------------------------
 # Path to a region's CWD grid template.
 template_path <- function(region) {
   here("data", paste0("cwd_", region, ".tif"))
@@ -45,6 +47,7 @@ align_to_template <- function(raw, template, method) {
   raw_crop <- terra::crop(raw, crop_ext)
   terra::project(raw_crop, template, method = method)
 }
+
 
 # ---- Loop over focus regions and builds per-region stack and geology --------
 

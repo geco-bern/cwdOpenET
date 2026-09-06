@@ -3,6 +3,7 @@
 # higher CWDmax than ridges) for the Appalachian focus region. It works in the
 # exact same manner as the 03_h1_h2_topography_northern_california.R script.
 
+
 # ---- Setup ------------------------------------------------------------------
 library(terra)
 library(dplyr)
@@ -37,6 +38,7 @@ lanid <- stack_pre[["lanid"]]
 stack        <- c(cwd, elev, twi)
 names(stack) <- c("cwd_max", "elevation", "twi")
 
+
 # ---- Subsample ---------------------------------------------------------------
 df_full <- terra::spatSample(
   stack,
@@ -55,6 +57,7 @@ df_full       <- drop_irrigated(df_full)
 # which slice_sample() would treat as an error.
 df <- df_full |>
   dplyr::slice_sample(n = min(n_sample, nrow(df_full)))
+
 
 # ---- Test H1: CWDmax vs. Elevation ------------------------------------------
 mod_h1 <- lm(cwd_max ~ elevation, data = df)
@@ -78,6 +81,7 @@ plot_elev_hex <- annotate_lm(plot_elev_hex, mod_h1, slope_unit = "mm/m")
 
 # Save plot
 save_fig(plot_elev_hex, "h1_elev_hex_appalachia")
+
 
 # ---- Test H2: CWDmax vs. TWI ------------------------------------------------
 mod_h2 <- lm(cwd_max ~ twi, data = df)

@@ -37,8 +37,8 @@ within GEE's per-task memory/timeout limits.
   countries). These are marked in the code under `excluded tiles` and
   should stay commented out.
 
-After all tiles are exported, mosaic them into a single CONUS-wide map using the
-`conus_merge.R` script.
+After all tiles are exported, download them to `/data/conus_grid` and mosaic them 
+into a single CONUS-wide map using the `conus_merge.R` script.
 
 ## Runtime & budget
 
