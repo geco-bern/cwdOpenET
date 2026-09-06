@@ -122,16 +122,6 @@ ggsave(here("fig", "map_cwd_max_conus.pdf"), p_map_cwd,
 ggsave(here("fig", "map_cwd_max_conus.png"), p_map_cwd,
        width = 20, height = 14, units = "cm", dpi = 600)
 
-ggsave(here("fig", "map_gap_filled_conus.pdf"), p_map_gap,
-       width = 20, height = 14, units = "cm")
-ggsave(here("fig", "map_gap_filled_conus.png"), p_map_gap,
-       width = 20, height = 14, units = "cm", dpi = 600)
-
-ggsave(here("fig", "bar_gap_filled_conus.pdf"), p_bar_gap,
-       width = 16, height = 10, units = "cm")
-ggsave(here("fig", "bar_gap_filled_conus.png"), p_bar_gap,
-       width = 16, height = 10, units = "cm", dpi = 600)
-
 ggsave(here("fig", "gap_filled_conus_combined.pdf"), p_gap_combined,
        width = 18, height = 16, units = "cm")
 ggsave(here("fig", "gap_filled_conus_combined.png"), p_gap_combined,
