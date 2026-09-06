@@ -39,9 +39,6 @@ vignettes/*.pdf
 # R Environment Variables
 .Renviron
 
-# pkgdown site
-docs/
-
 # translation temp files
 po/*~
 
@@ -58,3 +55,5 @@ data/*
 
 data-raw/*
 !data-raw/.gitkeep
+# Hand-digitised catchment outlines (ArcGIS Pro) - not reproducible by any script
+!data-raw/*_polygon.*
