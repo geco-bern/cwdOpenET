@@ -14,6 +14,10 @@
   These drivers are: topographic position, geological substrate, land
   cover and irrigation.
 
+## Outputs
+- Generated map is archived at https://zenodo.org/records/22281094
+- Generated map is visualized at https://dafaeh.github.io/cwd_conus_map/ (source: https://github.com/geco-bern/cwd_conus_map)
+
 ## Data sources
 - Evapotranspiration: OpenET DisALEXI model providing actual ET at 30 m resolution
   (Melton et al., 2022): https://doi.org/10.1111/1752-1688.12956
